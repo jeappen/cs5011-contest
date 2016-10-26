@@ -1,0 +1,5 @@
+'train_data' contains the training data and their respective labels is present in 'train_labels' document.
+'leaderboardTest_data' contains the testing data for which the predictions have to be uploaded on the website.
+
+Note: A different set of testing data will be released on last week of contest which will also include this testing data.
+
