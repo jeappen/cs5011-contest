@@ -9,10 +9,11 @@ ML COntest
 import zipfile
 import pandas as pd
 import numpy as np
+import tensorflow as tf
 from sklearn.ensemble import AdaBoostClassifier,GradientBoostingClassifier,RandomForestClassifier,VotingClassifier,BaggingClassifier
 from sklearn.model_selection import train_test_split
 from scipy.stats import mode
-import tensorflow as tf
+from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn import svm
@@ -44,11 +45,10 @@ parameter_grid = {
 if 'df' not in locals():
     (df, df_ldb) = read_data()
     df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
-    df = df.drop(['label'], axis=1)
 cols = df.columns.tolist()
 
 output_index_start = -12
-
+label_col_index = output_index_start-1
 #bring vote to start
 #cols = cols[-5:]+cols[:-5]
 
@@ -77,10 +77,12 @@ test_data = df_test.values
 #In case of potato PC
 del df_train,df_test
 
+Ylabel_train = train_data[:,label_col_index]
+Ylabel_test = test_data[:,label_col_index]
 Y_train = train_data[:,output_index_start:]
 Y_test = test_data[:,output_index_start:]
-X_train = train_data[:,:output_index_start] #-1 to skip last column
-X_test = test_data[:,:output_index_start]
+X_train = train_data[:,:label_col_index] #-1 to skip last column
+X_test = test_data[:,:label_col_index]
 
 
 
@@ -186,6 +188,7 @@ def learn_mlp(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
         # Calculate accuracy
         
     return best[0]
+pca = PCA(n_components=X_train.shape[1])
 
 Y_predicted = learn_mlp(X_train,Y_train,X_test,Y_test,training_epochs = 10)
 clf_SET = []
@@ -270,7 +273,7 @@ Okay, now print the output
 """
 
 result = np.c_[Y_predicted]
-df_result = pd.DataFrame()
+df_result = pd.DataFrame(result)
 
 
-df_result.to_csv('../results/tf_mlp_result.csv', index=False)
+df_result.to_csv('../results/tf_mlp_result.csv', index=False, header = None)
