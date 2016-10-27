@@ -6,6 +6,7 @@ ML COntest
 @author: joera_000
 """
 
+import zipfile
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import AdaBoostClassifier,GradientBoostingClassifier,RandomForestClassifier,VotingClassifier,BaggingClassifier
@@ -14,12 +15,21 @@ from scipy.stats import mode
 import tensorflow as tf
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
-from sklearn.grid_search import GridSearchCV
 from sklearn import svm
+
+def read_data():
+    z = zipfile.ZipFile('../DATASET.zip')
+    print z.namelist()
+    df_train = pd.read_csv(z.open(z.namelist()[3]),header = None)
+    df_train['label'] = pd.read_csv(z.open(z.namelist()[4]),header = None)
+    df_ldb = pd.read_csv(z.open(z.namelist()[1]), header = None)
+    return df_train,df_ldb
+
 
 def batchify(lst,n):
     return [ lst[i::n] for i in xrange(n) ]
 
+            
 train_test_split_fraction = 0.2
 parameter_grid = {
     'max_features': [0.5, 1.],
@@ -31,16 +41,18 @@ parameter_grid = {
 
 #df = pd.read_csv('../Training_Dataset.csv')
 
-execfile("read_data.py")
-
-df = df_train
-
-df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
+if 'df' not in locals():
+    (df, df_ldb) = read_data()
+    df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
+    df = df.drop(['label'], axis=1)
 cols = df.columns.tolist()
+
+output_index_start = -12
+
 #bring vote to start
 #cols = cols[-5:]+cols[:-5]
 
-df = df[cols]
+#df = df[cols]
 
 #Test how correlated, sets of features are with final vote
 #startnum_list = [1,6,11,16,21]
@@ -62,43 +74,19 @@ df_train, df_test = train_test_split(df[testcols], test_size = train_test_split_
 train_data = df_train.values
 test_data = df_test.values
 
-Y_train = train_data[:,-12:]
-Y_test = test_data[:,-12:]
-X_train = train_data[:,:-13] #-1 to skip last column
-X_test = test_data[:,:-13]
+#In case of potato PC
+del df_train,df_test
+
+Y_train = train_data[:,output_index_start:]
+Y_test = test_data[:,output_index_start:]
+X_train = train_data[:,:output_index_start] #-1 to skip last column
+X_test = test_data[:,:output_index_start]
 
 
 
 """
 Enter Tensorflow
 """
-
-# Parameters
-learning_rate = 0.001
-training_epochs = 1000
-batch_size = 100
-display_step = 2
-
-# Network Parameters
-n_hidden_1 = 50 # 1st layer number of features
-n_hidden_2 = 20 # 2nd layer number of features
-n_input = np.shape(X_train)[1] #  data input
-n_classes = np.shape(Y_train)[1]# total classes
-n_train = np.shape(Y_train)[0]
-
-total_batch = int(n_train/batch_size)
-
-X_batches = batchify(X_train,total_batch)
-Y_batches = batchify(Y_train,total_batch)
-
-# tf Graph input
-x = tf.placeholder("float", [None, n_input])
-y = tf.placeholder("float", [None, n_classes])
-
-"""
-Now start training the classifier
-"""
-
 # Create model
 def multilayer_perceptron(x, weights, biases):
     # Hidden layer with RELU activation
@@ -111,59 +99,97 @@ def multilayer_perceptron(x, weights, biases):
     out_layer = tf.matmul(layer_2, weights['out']) + biases['out']
     return out_layer
 
+def learn_mlp(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
+              , training_epochs = 100, batch_size = 100, display_step = 2
+              , n_hidden_1 = 50 # 1st layer number of features
+              , n_hidden_2 = 20  # 2nd layer number of features
+              ):
+    #    print 'poop'
+    #
+    ## Parameters
+    #learning_rate = 0.01
+    #training_epochs = 100
+    #batch_size = 100
+    #display_step = 2
     
+    # Network Parameters
     
-# Store layers weight & bias
-weights = {
-    'h1': tf.Variable(tf.random_normal([n_input, n_hidden_1])),
-    'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
-    'out': tf.Variable(tf.random_normal([n_hidden_2, n_classes]))
-}
-biases = {
-    'b1': tf.Variable(tf.random_normal([n_hidden_1])),
-    'b2': tf.Variable(tf.random_normal([n_hidden_2])),
-    'out': tf.Variable(tf.random_normal([n_classes]))
-}
+    n_input = np.shape(X_train)[1] #  data input
+    n_classes = np.shape(Y_train)[1]# total classes
+    n_train = np.shape(Y_train)[0]
+    
+    total_batch = int(n_train/batch_size)
+    
+    X_batches = batchify(X_train,total_batch)
+    Y_batches = batchify(Y_train,total_batch)
+    
+    # tf Graph input
+    x = tf.placeholder("float", [None, n_input])
+    y = tf.placeholder("float", [None, n_classes])
+    
+    """
+    Now start training the classifier
+    """
+        
+    # Store layers weight & bias
+    weights = {
+        'h1': tf.Variable(tf.random_normal([n_input, n_hidden_1])),
+        'h2': tf.Variable(tf.random_normal([n_hidden_1, n_hidden_2])),
+        'out': tf.Variable(tf.random_normal([n_hidden_2, n_classes]))
+    }
+    biases = {
+        'b1': tf.Variable(tf.random_normal([n_hidden_1])),
+        'b2': tf.Variable(tf.random_normal([n_hidden_2])),
+        'out': tf.Variable(tf.random_normal([n_classes]))
+    }
+    
+    # Construct model
+    pred = multilayer_perceptron(x, weights, biases)
+    
+    # Define loss and optimizer
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
+    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+    
+    # Initializing the variables
+    init = tf.initialize_all_variables()
+    
+    # Launch the graph
+    with tf.Session() as sess:
+        sess.run(init)
+        # Training cycle
+        for epoch in range(training_epochs):
+            avg_cost = 0.
+            total_batch = int(n_train/batch_size)
+            # Loop over all batches
+            for i in range(total_batch):
+                batch_x, batch_y = (X_batches[i], Y_batches[i])
+                # Run optimization op (backprop) and cost op (to get loss value)
+                _, c = sess.run([optimizer, cost], feed_dict={x: batch_x,
+                                                              y: batch_y})
+                # Compute average loss
+                avg_cost += c / total_batch
+            # Display logs per epoch step
+            if epoch % display_step == 0:
+                print "Epoch:", '%04d' % (epoch+1), "cost=", \
+                    "{:.9f}".format(avg_cost)
+        print "Optimization Finished!"
+        prediction=tf.argmax(pred,1)
+        if Y_test is None:
+            best = sess.run([prediction],{x: X_test})
+        else:            
+            best = sess.run([prediction],{x: X_test,y: Y_test})
+            correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+            print "Accuracy of MLP:", accuracy.eval({x: X_test, y: Y_test})
+        # Test model
+        
+        # Calculate accuracy
+        
+    return best[0]
 
-# Construct model
-pred = multilayer_perceptron(x, weights, biases)
-
-# Define loss and optimizer
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-
-# Initializing the variables
-init = tf.initialize_all_variables()
-
-# Launch the graph
-with tf.Session() as sess:
-    sess.run(init)
-
-    # Training cycle
-    for epoch in range(training_epochs):
-        avg_cost = 0.
-        total_batch = int(n_train/batch_size)
-        # Loop over all batches
-        for i in range(total_batch):
-            batch_x, batch_y = (X_batches[i], Y_batches[i])
-            # Run optimization op (backprop) and cost op (to get loss value)
-            _, c = sess.run([optimizer, cost], feed_dict={x: batch_x,
-                                                          y: batch_y})
-            # Compute average loss
-            avg_cost += c / total_batch
-        # Display logs per epoch step
-        if epoch % display_step == 0:
-            print "Epoch:", '%04d' % (epoch+1), "cost=", \
-                "{:.9f}".format(avg_cost)
-    print "Optimization Finished!"
-    prediction=tf.argmax(pred,1)
-    best = sess.run([prediction],{x: X_test,y: Y_test})
-    # Test model
-    correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-    # Calculate accuracy
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-    print "Accuracy of MLP:", accuracy.eval({x: X_test, y: Y_test})
-
+Y_predicted = learn_mlp(X_train,Y_train,X_test,Y_test,training_epochs = 10)
+clf_SET = []
+clf_labels = ["RF","VotingClassifier","Bagged SVM","Grad Boosted Dec Tree","MLP"]
 
 #
 ##grid_search.fit(train_data[0:,1:], train_data[0:,0])
@@ -196,7 +222,6 @@ with tf.Session() as sess:
 #
 ##Make list here to display results
 #clf_SET = [model,eclf2,clf_svm_bag,clf_gb]
-#clf_labels = ["RF","VotingClassifier","Bagged SVM","Grad Boosted Dec Tree","MLP"]
 
 """
 Now import the Leaderboard data
@@ -235,32 +260,17 @@ Now import the Leaderboard data
 
 output = [[] for clf in clf_SET]
 accuracy = [[] for clf in clf_SET]
-
 for i in range(len(clf_SET)):
     output[i] = clf_SET[i].predict(test_data[:,5:-1])
     accuracy[i] = np.sum(output[i]==test_data[:,-1])/(len(output[i])+0.0)
     print "Accuracy of",clf_labels[i]," is ",accuracy[i]
 
 """
-Check the pvp != vote rows
+Okay, now print the output
 """
-output_mlp =best[0]
-vote = np.where(df_test[:][cols[:5]])[1]
-boolarr = (df_test['pvp']!=vote).values
-print "Accuracy of the tricky part for MLP",np.sum(output_mlp[boolarr] == vote[boolarr])/(np.sum(boolarr) + 0.0)
 
-for i in range(len(clf_SET)):
-    print "Accuracy of the tricky part for",clf_labels[i]," is ",np.sum(output[i][boolarr] == vote[boolarr])/(np.sum(boolarr) + 0.0)
-
-"""
-Okay, now map the output labels to parties
-"""
-#
-inv_map = {v: k for k, v in party_dict_pandas1Hot.iteritems()}
-output_string = np.vectorize(inv_map.get)(output_mlp)
-
-result = np.c_[test_data[:,0].astype(str), output_string.astype(str)]
-df_result = pd.DataFrame(result[:,0:2])
+result = np.c_[Y_predicted]
+df_result = pd.DataFrame()
 
 
-df_result.to_csv('../results/mlp_result.csv', index=False)
+df_result.to_csv('../results/tf_mlp_result.csv', index=False)
