@@ -33,7 +33,7 @@ def batchify(lst,n):
     return [ lst[i::n] for i in xrange(n) ]
 
             
-train_test_split_fraction = 0.2
+train_test_split_fraction = 0.3
 parameter_grid = {
     'max_features': [0.5, 1.],
     'max_depth': [5., None]
@@ -71,7 +71,8 @@ label_col_index = output_index_start-1
        
 testcols = cols#['vote','pvp']+['addedvar'+str(startnum) for startnum in startnum_list]#+cols[30:39]#+[y for x in colname_set[:] for y in x]#colname_set[0]+colname_set[1]
                              
-df_train, df_test = train_test_split(df[testcols], test_size = train_test_split_fraction,random_state = 2)
+df_train, df_test = train_test_split(df[testcols],\
+                                     test_size = train_test_split_fraction,random_state = 4)
 
 train_data = df_train.values
 test_data = df_test.values
@@ -191,117 +192,131 @@ def learn_mlp(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
         
     return best[0]
 
-
-def RNN(x, weights, biases):
-
-    # Prepare data shape to match `rnn` function requirements
-    # Current data input shape: (batch_size, n_steps, n_input)
-    # Required shape: 'n_steps' tensors list of shape (batch_size, n_input)
-
-    # Permuting batch_size and n_steps
-    x = tf.transpose(x, [1, 0, 2])
-    # Reshaping to (n_steps*batch_size, n_input)
-    x = tf.reshape(x, [-1, n_input])
-    # Split to get a list of 'n_steps' tensors of shape (batch_size, n_input)
-    x = tf.split(0, n_steps, x)
-
-    # Define a lstm cell with tensorflow
-    lstm_cell = rnn_cell.BasicLSTMCell(n_hidden, forget_bias=1.0)
-
-    # Get lstm cell output
-    outputs, states = rnn.rnn(lstm_cell, x, dtype=tf.float32)
-
-    # Linear activation, using rnn inner loop last output
-    return tf.matmul(outputs[-1], weights['out']) + biases['out']
-
-def learn_RNN(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
-              , training_iters = 100000, batch_size = 128, display_step = 10
-              , n_input = 50 # 1st layer number of features
-              , n_hidden = 128  # 2nd layer number of features
-              ):
-
-    # Network Parameters
-    # n_input = 28 # MNIST data input (img shape: 28*28)
-    n_steps = 28 # timesteps
-    n_hidden = 128 # hidden layer num of features
-    # n_classes = 10 # MNIST total classes (0-9 digits)
-    n_input = np.shape(X_train)[1] #  data input
-    n_classes = np.shape(Y_train)[1]# total classes
-    n_train = np.shape(Y_train)[0]
-
-    total_batch = int(n_train/batch_size)
+class RNN_c(object):
     
-    X_batches = batchify(X_train, total_batch)
-    Y_batches = batchify(Y_train, total_batch)
-
-    # tf Graph input
-    x = tf.placeholder("float", [None, n_steps, n_input])
-    y = tf.placeholder("float", [None, n_classes])
-
-    # Define weights
-    weights = {
-        'out': tf.Variable(tf.random_normal([n_hidden, n_classes]))
-    }
-    biases = {
-        'out': tf.Variable(tf.random_normal([n_classes]))
-    }
-
-
-
-
-    pred = RNN(x, weights, biases)
-
-    # Define loss and optimizer
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
-    optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-
-    # Evaluate model
-    correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(y,1))
-    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-
-    # Initializing the variables
-    init = tf.initialize_all_variables()
-
-    # Launch the graph
-    with tf.Session() as sess:
-        sess.run(init)
-        step = 1
-        # Keep training until reach max iterations
-        while step * batch_size < training_iters:
-            batch_x, batch_y = (X_batches[i], Y_batches[i])
-            # Reshape data to get 28 seq of 28 elements
-            batch_x = batch_x.reshape((batch_size, n_steps, n_input))
-            # Run optimization op (backprop)
-            sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
-            if step % display_step == 0:
-                # Calculate batch accuracy
-                acc = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y})
-                # Calculate batch loss
-                loss = sess.run(cost, feed_dict={x: batch_x, y: batch_y})
-                print("Iter " + str(step*batch_size) + ", Minibatch Loss= " + \
-                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                      "{:.5f}".format(acc))
-            step += 1
-        print("Optimization Finished!")
-
-        # Calculate accuracy for 128 mnist test images
-        # test_len = 128
-        if Y_test is None:
-            best = sess.run([prediction],{x: X_test})
-        else:            
-            best = sess.run([prediction],{x: X_test,y: Y_test})
-            correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-            accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-            print "Accuracy of MLP:", accuracy.eval({x: X_test, y: Y_test})
-        test_data = X_test.reshape((-1, n_steps, n_input))
-        test_label = Y_test
-        print("Testing Accuracy:", \
-            sess.run(accuracy, feed_dict={x: test_data, y: test_label}))
+    def RNN(self,x, weights, biases):
+    
+        # Prepare data shape to match `rnn` function requirements
+        # Current data input shape: (batch_size, n_steps, n_input)
+        # Required shape: 'n_steps' tensors list of shape (batch_size, n_input)
+    
+        # Permuting batch_size and n_steps
+        x = tf.transpose(x, [1, 0, 2])
+        # Reshaping to (n_steps*batch_size, n_input)
+        x = tf.reshape(x, [-1, self.n_input])
+        # Split to get a list of 'n_steps' tensors of shape (batch_size, n_input)
+        x = tf.split(0, self.n_steps, x)
+    
+        # Define a lstm cell with tensorflow
+#        with tf.variable_scope('poop', reuse =True):    
+        tf.get_variable_scope().reuse_variables()
+        lstm_cell = rnn_cell.BasicLSTMCell(self.n_hidden, forget_bias=1.0)
+    
+        # Get lstm cell output
+        outputs, states = rnn.rnn(lstm_cell, x, dtype=tf.float32)
+    
+        # Linear activation, using rnn inner loop last output
+        return tf.matmul(outputs[-1], weights['out']) + biases['out']
+    
+    def learn_RNN(self,X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
+                  , training_iters = 100000, batch_size = 128, display_step = 10
+                  , n_input = 50 # 1st layer number of features
+                  , n_hidden = 128  # 2nd layer number of features
+                  ):
+    
+        # Network Parameters
+        # n_input = 28 # MNIST data input (img shape: 28*28)
+        self.n_steps = 64 # timesteps
+        self.n_hidden = n_hidden #128 # hidden layer num of features
+        # n_classes = 10 # MNIST total classes (0-9 digits)
+        self.n_input = np.shape(X_train)[1]/self.n_steps #  data input
+        self.n_classes = np.shape(Y_train)[1]# total classes
+        self.n_train = np.shape(Y_train)[0]
+    
+        total_batch = int(self.n_train/batch_size)
+        
+        X_batches = batchify(X_train, total_batch)
+        Y_batches = batchify(Y_train, total_batch)
+    
+        # tf Graph input
+        x = tf.placeholder("float", [None, self.n_steps, self.n_input])
+        y = tf.placeholder("float", [None, self.n_classes])
+    
+        # Define weights
+        weights = {
+            'out': tf.Variable(tf.random_normal([self.n_hidden, self.n_classes]))
+        }
+        biases = {
+            'out': tf.Variable(tf.random_normal([self.n_classes]))
+        }
+    
+    
+    
+    
+        pred = self.RNN(x, weights, biases)
+    
+        # Define loss and optimizer
+        cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+    
+        # Evaluate model
+        correct_pred = tf.equal(tf.argmax(pred,1), tf.argmax(y,1))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+    
+        # Initializing the variables
+        init = tf.initialize_all_variables()
+    
+        # Launch the graph
+        with tf.Session() as sess:
+            sess.run(init)
+            step = 1
+            # Keep training until reach max iterations
+            while step * batch_size < training_iters:
+                total_batch = int(self.n_train/batch_size)
+                for i in range(total_batch):
+                    batch_x, batch_y = (X_batches[i], Y_batches[i])
+                    # Reshape data to get 28 seq of 28 elements
+                    batch_size = batch_x.shape[0]*batch_x.shape[1]/np.shape(X_train)[1]
+                    batch_x = batch_x.reshape((batch_size, self.n_steps, self.n_input))
+                    # Run optimization op (backprop)
+                    sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
+                    if step % display_step == 0:
+                        # Calculate batch accuracy
+                        acc = sess.run(accuracy, feed_dict={x: batch_x, y: batch_y})
+                        # Calculate batch loss
+                        loss = sess.run(cost, feed_dict={x: batch_x, y: batch_y})
+                        print("Iter " + str(step*batch_size) + ", Minibatch Loss= " + \
+                              "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                              "{:.5f}".format(acc))
+                    step += 1
+            print("Optimization Finished!")
+            prediction=tf.argmax(pred,1)
+    
+            # Calculate accuracy for 128 mnist test images
+            # test_len = 128
+#            if Y_test is None:
+#                best = sess.run([prediction],{x: X_test})
+#            else:            
+#                best = sess.run([prediction],{x: X_test,y: Y_test})
+#                correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+#                accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+#                print "Accuracy of MLP:", accuracy.eval({x: X_test, y: Y_test})
+            test_data = X_test.reshape((-1, self.n_steps, self.n_input))
+            test_label = Y_test
+            print("Testing Accuracy:", \
+                sess.run(accuracy, feed_dict={x: test_data, y: test_label}))
+            best = sess.run([prediction], feed_dict={x: test_data, y: test_label})
+            
+        return best[0]
 
 
 pca = PCA(n_components=X_train.shape[1])
 
 Y_predicted = learn_mlp(X_train,Y_train,X_test,Y_test,training_epochs = 10)
+
+rnn_obj = RNN_c();
+#Y_predicted = rnn_obj.learn_RNN(X_train,Y_train,X_test,Y_test)
+
 clf_SET = []
 clf_labels = ["RF","VotingClassifier","Bagged SVM","Grad Boosted Dec Tree","MLP"]
 
