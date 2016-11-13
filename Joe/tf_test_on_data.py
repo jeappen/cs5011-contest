@@ -28,12 +28,22 @@ def read_data():
     df_ldb = pd.read_csv(z.open(z.namelist()[1]), header = None)
     return df_train,df_ldb
 
+def read_data_full():
+    f_train = open('/media/yokian/Storage/ml/DATASET/train_data', 'r')
+    f_labels = open('/media/yokian/Storage/ml/DATASET/train_labels', 'r')
+    f_ldb = open('/media/yokian/Storage/ml/DATASET/leaderboardTest_data', 'r')
+#    print z.namelist()
+    df_train = pd.read_csv(f_train,header = None,dtype=np.float32)
+    df_train['label'] = pd.read_csv(f_labels,header = None)
+    df_ldb = pd.read_csv(f_ldb, header = None,dtype=np.float32)
+    return df_train,df_ldb
+    
 
 def batchify(lst,n):
     return [ lst[i::n] for i in xrange(n) ]
 
             
-train_test_split_fraction = 0.3
+train_test_split_fraction = 0.4
 parameter_grid = {
     'max_features': [0.5, 1.],
     'max_depth': [5., None]
@@ -45,7 +55,7 @@ parameter_grid = {
 #df = pd.read_csv('../Training_Dataset.csv')
 
 if 'df' not in locals():
-    (df, df_ldb) = read_data()
+    (df, df_ldb) = read_data_full()
     df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
 cols = df.columns.tolist()
 
@@ -72,7 +82,7 @@ label_col_index = output_index_start-1
 testcols = cols#['vote','pvp']+['addedvar'+str(startnum) for startnum in startnum_list]#+cols[30:39]#+[y for x in colname_set[:] for y in x]#colname_set[0]+colname_set[1]
                              
 df_train, df_test = train_test_split(df[testcols],\
-                                     test_size = train_test_split_fraction,random_state = 4)
+                                     test_size = train_test_split_fraction,random_state =1)
 
 train_data = df_train.values
 test_data = df_test.values
@@ -107,7 +117,7 @@ def multilayer_perceptron(x, weights, biases):
 def learn_mlp(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
               , training_epochs = 100, batch_size = 100, display_step = 2
               , n_hidden_1 = 50 # 1st layer number of features
-              , n_hidden_2 = 20  # 2nd layer number of features
+              , n_hidden_2 = 20 ,beta = 1e-5 # 2nd layer number of features
               ):
     #    print 'poop'
     #
@@ -152,7 +162,11 @@ def learn_mlp(X_train,Y_train,X_test, Y_test = None, learning_rate = 0.01
     pred = multilayer_perceptron(x, weights, biases)
     
     # Define loss and optimizer
-    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y))
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred, y) +\
+                          +beta*tf.nn.l2_loss(weights['h1']) +beta*tf.nn.l2_loss(weights['out']) )
+#    beta*tf.nn.l2_loss(biases['b1']) +\
+#    beta*tf.nn.l2_loss(weights['out']) +\
+#    beta*tf.nn.l2_loss(biases['out']))
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
     
     # Initializing the variables
@@ -310,11 +324,15 @@ class RNN_c(object):
         return best[0]
 
 
-pca = PCA(n_components=X_train.shape[1])
-
-Y_predicted = learn_mlp(X_train,Y_train,X_test,Y_test,training_epochs = 10)
-
-rnn_obj = RNN_c();
+#pca = PCA(n_components=X_train.shape[1])
+#pca.fit(X_train)  
+#print(pca.explained_variance_ratio_) 
+#T_test = pca.transform(X_test)
+#T_train = pca.transform(X_train)
+#Y_predicted = learn_mlp(T_train[:,1:1000],Y_train,T_test[:,1:1000],Y_test,training_epochs = 100,beta = 1e-5)
+##Y_predicted = learn_mlp(X_train,Y_train,X_test,Y_test,training_epochs = 100,beta = 1e-5)
+#
+#rnn_obj = RNN_c();
 #Y_predicted = rnn_obj.learn_RNN(X_train,Y_train,X_test,Y_test)
 
 clf_SET = []
