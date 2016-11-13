@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 np.random.seed(1337)  # for reproducibility
+import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from keras.datasets import cifar10
@@ -11,9 +12,9 @@ from keras.layers import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD,Adam
 from keras.utils import np_utils
 
-batch_size = 64
+batch_size = 32
 nb_classes = 12
-nb_epoch = 200
+nb_epoch = 600
 data_augmentation = False
 
 # input image dimensions
@@ -34,7 +35,7 @@ def read_data_full():
     df_ldb = pd.read_csv(f_ldb, header = None,dtype=np.float32)
     return df_train,df_ldb
 
-train_test_split_fraction = 0.4
+# train_test_split_fraction = 0.4
 if 'df' not in locals():
     (df, df_ldb) = read_data_full()
     df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
@@ -43,29 +44,20 @@ cols = df.columns.tolist()
 output_index_start = -12
 label_col_index = output_index_start-1    
 
-testcols = cols
+train_data = df.values
+test_data = df_ldb.values
 
-train_test_split_fraction = 0.4
-
-df_train, df_test = train_test_split(df[testcols],\
-                                     test_size = train_test_split_fraction,random_state =1)
-
-train_data = df_train.values
-test_data = df_test.values
-
-#In case of potato PC
-del df_train,df_test
 
 
 Ylabel_train = train_data[:,label_col_index]
 Ylabel_test = test_data[:,label_col_index]
 y_train = np.array(Ylabel_train.astype(np.uint8))[:,np.newaxis]     #for keras     
-y_test = np.array(Ylabel_test.astype(np.uint8))[:,np.newaxis]  
+# y_test = np.array(Ylabel_test.astype(np.uint8))[:,np.newaxis]  
 
 Y_train = train_data[:,output_index_start:]
-Y_test = test_data[:,output_index_start:]
+# Y_test = test_data[:,output_index_start:]
 X_train = train_data[:,:label_col_index] #-1 to skip last column
-X_test = test_data[:,:label_col_index]
+X_test = test_data
 
 
 
@@ -93,7 +85,6 @@ print(X_test.shape[0], 'test samples')
 
 # convert class vectors to binary class matrices
 Y_train = np_utils.to_categorical(y_train, nb_classes)
-Y_test = np_utils.to_categorical(y_test, nb_classes)
 
 model = Sequential()
 
@@ -121,7 +112,7 @@ model.add(Activation('softmax'))
 
 # let's train the model using SGD + momentum (how original).
 sgd = SGD(lr=0.001, decay=1e-6, momentum=0.09, nesterov=True)
-adam = Adam(lr=3e-5, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+adam = Adam(lr=1e-5, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 model.compile(loss='categorical_crossentropy',
               optimizer=adam,
               metrics=['accuracy'])
@@ -136,7 +127,6 @@ if not data_augmentation:
     model.fit(X_train, Y_train,
               batch_size=batch_size,
               nb_epoch=nb_epoch,
-              validation_data=(X_test, Y_test),
               shuffle=True)
 else:
     print('Using real-time data augmentation.')
@@ -163,5 +153,19 @@ else:
     model.fit_generator(datagen.flow(X_train, Y_train,
                         batch_size=batch_size),
                         samples_per_epoch=X_train.shape[0],
-                        nb_epoch=nb_epoch,
-                        validation_data=(X_test, Y_test))
+                        nb_epoch=nb_epoch)
+
+Predictions = model.predict_classes(X_test)
+
+print(Predictions)
+result = np.c_[Predictions]
+df_result = pd.DataFrame(result)
+
+#FOR MAHESH's PC
+df_result.to_csv('../../results/keras_cnn_result.txt', index=False, header = None)
+
+
+os.system('../../gdrive upload ../../results/keras_cnn_result.txt')
+os.system('shutdown -t 5')
+os.system('notify-send \"PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')
+os.system('notify-send \"I REPEAT PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')
