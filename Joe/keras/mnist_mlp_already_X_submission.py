@@ -13,6 +13,11 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
 from keras.optimizers import SGD, Adam, RMSprop
 from keras.utils import np_utils
+from keras.models import load_model
+
+model_name = 'keras-mlp-mnist'
+load_old_model = False
+save_model = True
 
 def read_data_full():
     f_train = open('../DATASET/train_data', 'r')
@@ -72,29 +77,37 @@ print(X_test.shape[0], 'test samples')
 Y_train = np_utils.to_categorical(y_train, nb_classes)
 # Y_test = np_utils.to_categorical(y_test, nb_classes)
 
-model = Sequential()
-model.add(Dense(n_hidden, input_shape=(num_feat,)))
-model.add(Activation('relu'))
-model.add(Dropout(0.2))
-model.add(Dense(n_hidden))
-model.add(Activation('relu'))
-model.add(Dropout(0.2))
-model.add(Dense(12))
-model.add(Activation('softmax'))
+if not load_old_model:
+	model = Sequential()
+	model.add(Dense(n_hidden, input_shape=(num_feat,)))
+	model.add(Activation('relu'))
+	model.add(Dropout(0.2))
+	model.add(Dense(n_hidden))
+	model.add(Activation('relu'))
+	model.add(Dropout(0.2))
+	model.add(Dense(12))
+	model.add(Activation('softmax'))
 
-model.summary()
+	model.summary()
 
-sgd = SGD(lr=0.003, decay=1e-6, momentum=0.09, nesterov=True)
-adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-rms= RMSprop()
-model.compile(loss='categorical_crossentropy',
-              optimizer=adam,
-              metrics=['accuracy'])
+	sgd = SGD(lr=0.003, decay=1e-6, momentum=0.09, nesterov=True)
+	adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+	rms= RMSprop()
 
-history = model.fit(X_train, Y_train,
-                    batch_size=batch_size, nb_epoch=nb_epoch,
-                    verbose=1)
+	model.compile(loss='categorical_crossentropy',
+	              optimizer=adam,
+	              metrics=['accuracy'])
 
+	history = model.fit(X_train, Y_train,
+	                    batch_size=batch_size, nb_epoch=nb_epoch,
+	                    verbose=1)
+	if save_model:
+		print('Saving model')
+		model.save(model_name+'.h5')
+else:
+	print('loading old model')
+	model = load_model(model_name+'.h5')
+	model.summary()
 
 Predictions = model.predict_classes(X_test)
 
