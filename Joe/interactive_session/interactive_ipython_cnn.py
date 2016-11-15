@@ -62,6 +62,13 @@ saver = tf.train.Saver()
 epoch_list=[]
 accuracy_list=[]
 
+training_epochs = 100
+batch_size = 100
+display_step = 2
+n_hidden_1 = 50
+n_hidden_2 = 20
+beta = 1e-5 
+
 #now run this separately
 
 for epoch in range(training_epochs):

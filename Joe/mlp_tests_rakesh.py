@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from sklearn.decomposition import PCA
-from tensorflow.python.ops import rnn, rnn_cell
+# from tensorflow.python.ops import rnn, rnn_cell
 
 model_save="/home/yokian/Tensorflow/saved/mlp_contest.ckpt"
 

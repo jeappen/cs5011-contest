@@ -42,6 +42,15 @@ del df_train,df_test
 Ylabel_train = train_data[:,label_col_index]
 #Ylabel_test = test_data[:,label_col_index]
 Y_train = train_data[:,output_index_start:]
-Y_test = None#test_data[:,output_index_start:]
+# Y_test = None#test_data[:,output_index_start:]
 X_train = train_data[:,:label_col_index] #-1 to skip last column
-X_test = test_data#[:,:label_col_index]
+# X_test = test_data#[:,:label_col_index]
+
+n_input = np.shape(X_train)[1] #  data input
+n_classes = np.shape(Y_train)[1]# total classes
+n_train = np.shape(Y_train)[0]
+
+total_batch = int(n_train/batch_size)
+
+X_batches = batchify(X_train,total_batch)
+Y_batches = batchify(Y_train,total_batch)
