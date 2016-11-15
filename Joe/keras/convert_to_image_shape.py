@@ -8,15 +8,16 @@ def read_data_full():
     f_train = open('../DATASET/train_data', 'r')
     f_labels = open('../DATASET/train_labels', 'r')
     f_ldb = open('../DATASET/leaderboardTest_data', 'r')
+    f_final = open('../test_data', 'r')
 #    print z.namelist()
     df_train = pd.read_csv(f_train,header = None,dtype=np.float32)
     df_train['label'] = pd.read_csv(f_labels,header = None,dtype=np.uint8)
     df_ldb = pd.read_csv(f_ldb, header = None,dtype=np.float32)
-    return df_train,df_ldb
+    df_final = pd.read_csv(f_final, header = None,dtype=np.float32)
+    return df_train,df_ldb,df_final
 
-train_test_split_fraction = 0.4
 if 'df' not in locals():
-    (df, df_ldb) = read_data_full()
+    (df, df_ldb, df_final) = read_data_full()
     df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
 cols = df.columns.tolist()
 
@@ -25,13 +26,9 @@ label_col_index = output_index_start-1
 
 testcols = cols
 
-train_test_split_fraction = 0.4
-
-df_train, df_test = train_test_split(df[testcols],\
-                                     test_size = train_test_split_fraction,random_state =1)
-
-train_data = df_train.values
-test_data = df_test.values
+train_data = df.values
+test_data = df_ldb.values
+final_test_data = df_final.values
 
 #In case of potato PC
 del df_train,df_test

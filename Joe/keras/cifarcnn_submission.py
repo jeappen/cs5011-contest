@@ -12,12 +12,12 @@ from keras.layers import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD,Adam
 from keras.utils import np_utils
 
-batch_size = 32
+batch_size = 100
 nb_classes = 12
-nb_epoch = 600
-data_augmentation = False
+nb_epoch = 400
+data_augmentation = True
 
-model_name = 'keras-cnn-cifar'
+model_name = 'keras-cnn-cifar-400-data-aug'
 save_model = True
 load_old_model = False
 
@@ -28,28 +28,31 @@ img_channels = 3
 
 # the data, shuffled and split between train and test sets
 # (X_train, y_train), (X_test, y_test) = cifar10.load_data()
-
 def read_data_full():
     f_train = open('../DATASET/train_data', 'r')
     f_labels = open('../DATASET/train_labels', 'r')
     f_ldb = open('../DATASET/leaderboardTest_data', 'r')
+    f_final = open('../test_data', 'r')
 #    print z.namelist()
     df_train = pd.read_csv(f_train,header = None,dtype=np.float32)
     df_train['label'] = pd.read_csv(f_labels,header = None,dtype=np.uint8)
     df_ldb = pd.read_csv(f_ldb, header = None,dtype=np.float32)
-    return df_train,df_ldb
+    df_final = pd.read_csv(f_final, header = None,dtype=np.float32)
+    return df_train,df_ldb,df_final
 
-# train_test_split_fraction = 0.4
 if 'df' not in locals():
-    (df, df_ldb) = read_data_full()
+    (df, df_ldb, df_final) = read_data_full()
     df = pd.concat([df, pd.get_dummies(df['label'], prefix='class')], axis=1)
 cols = df.columns.tolist()
 
 output_index_start = -12
 label_col_index = output_index_start-1    
 
+testcols = cols
+
 train_data = df.values
 test_data = df_ldb.values
+final_test_data = df_final.values
 
 
 
@@ -120,7 +123,7 @@ if not load_old_model:
 
     # let's train the model using SGD + momentum (how original).
     sgd = SGD(lr=0.001, decay=1e-6, momentum=0.09, nesterov=True)
-    adam = Adam(lr=1e-5, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    adam = Adam(lr=3e-5, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(loss='categorical_crossentropy',
                   optimizer=adam,
                   metrics=['accuracy'])
@@ -173,12 +176,18 @@ Predictions = model.predict_classes(X_test)
 print(Predictions)
 result = np.c_[Predictions]
 df_result = pd.DataFrame(result)
+df_result.to_csv('../../results/'+model_name+'.txt', index=False, header = None)
+
+Predictions = model.predict_classes(final_test_data.astype(np.float32))
+result = np.c_[Predictions]
+df_final_result = pd.DataFrame(result)
+df_final_result.to_csv('../../results/'+model_name+'_final.txt', index=False, header = None)# score = model.evaluate(X_test, Y_test, verbose=0)
 
 #FOR MAHESH's PC
-df_result.to_csv('../../results/keras_cnn_result.txt', index=False, header = None)
 
 
-os.system('../../gdrive upload ../../results/keras_cnn_result.txt')
-os.system('shutdown -t 5')
-os.system('notify-send \"PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')
-os.system('notify-send \"I REPEAT PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')
+os.system('../../gdrive upload ../../results/'+model_name'.txt')
+os.system('../../gdrive upload ../../results/'+model_name+'_final.txt')
+# os.system('shutdown -t 5')
+# os.system('notify-send \"PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')
+# os.system('notify-send \"I REPEAT PC GOING TO SHUTDOWN IN 5 MIN. type shutdown -c to cancel\" ')

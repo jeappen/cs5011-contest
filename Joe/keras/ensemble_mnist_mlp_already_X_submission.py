@@ -59,12 +59,12 @@ X_test = test_data
 
 batch_size = 128
 nb_classes = 12
-nb_epoch = 100
+nb_epoch = 50
 
 # the data, shuffled and split between train and test sets
 # (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
-
+num_models = 18
 # X_train = X_train.reshape(60000, 784)
 # X_test = X_test.reshape(10000, 784)
 num_feat = 3072
@@ -79,47 +79,47 @@ print(X_test.shape[0], 'test samples')
 # convert class vectors to binary class matrices
 Y_train = np_utils.to_categorical(y_train, nb_classes)
 # Y_test = np_utils.to_categorical(y_test, nb_classes)
+for runID in range (num_models):   
+	if not load_old_model:
+		model = Sequential()
+		model.add(Dense(n_hidden, input_shape=(num_feat,)))
+		model.add(Activation('relu'))
+		model.add(Dropout(0.2))
+		model.add(Dense(n_hidden))
+		model.add(Activation('relu'))
+		model.add(Dropout(0.2))
+		model.add(Dense(12))
+		model.add(Activation('softmax'))
 
-if not load_old_model:
-	model = Sequential()
-	model.add(Dense(n_hidden, input_shape=(num_feat,)))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
-	model.add(Dense(n_hidden))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
-	model.add(Dense(12))
-	model.add(Activation('softmax'))
+		model.summary()
 
-	model.summary()
+		sgd = SGD(lr=0.003, decay=1e-6, momentum=0.09, nesterov=True)
+		adam = Adam(lr=0.0003, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+		rms= RMSprop()
 
-	sgd = SGD(lr=0.003, decay=1e-6, momentum=0.09, nesterov=True)
-	adam = Adam(lr=0.0003, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-	rms= RMSprop()
+		model.compile(loss='categorical_crossentropy',
+		              optimizer=adam,
+		              metrics=['accuracy'])
 
-	model.compile(loss='categorical_crossentropy',
-	              optimizer=adam,
-	              metrics=['accuracy'])
+		history = model.fit(X_train, Y_train,
+		                    batch_size=batch_size, nb_epoch=nb_epoch,
+		                    verbose=1)
+		if save_model:
+			print('Saving model')
+			model.save(model_name+'.h5')
+	else:
+		print('loading old model')
+		model = load_model(model_name+'.h5')
+		model.summary()
 
-	history = model.fit(X_train, Y_train,
-	                    batch_size=batch_size, nb_epoch=nb_epoch,
-	                    verbose=1)
-	if save_model:
-		print('Saving model')
-		model.save(model_name+'.h5')
-else:
-	print('loading old model')
-	model = load_model(model_name+'.h5')
-	model.summary()
+	Predictions = model.predict_classes(X_test)
 
-Predictions = model.predict_classes(X_test)
-
-print(Predictions)
-result = np.c_[Predictions]
-df_result = pd.DataFrame(result)
+	print(Predictions)
+	result = np.c_[Predictions]
+	df_result = pd.DataFrame(result)
 
 
-df_result.to_csv('../../results/keras_mlp_result.csv', index=False, header = None)
+	df_result.to_csv('../../results/ensemble/keras_mlp_result_ens'+str(runID)+'.txt', index=False, header = None)
 # score = model.evaluate(X_test, Y_test, verbose=0)
 
 # print('Test score:', score[0])
